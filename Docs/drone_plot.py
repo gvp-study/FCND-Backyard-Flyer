@@ -1,72 +1,96 @@
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-
-# Define the file content as a multiline string (for demonstration)
-data = """MsgID.GLOBAL_POSITION,0.0000000,-122.3957463,37.7932754,0.0970000
-MsgID.LOCAL_VELOCITY,0.0000000,0.0000000,0.0000000,0.0000000
-MsgID.LOCAL_POSITION,365.9500000,-0.2530547,0.4965539,-0.0977714
-MsgID.LOCAL_VELOCITY,365.9500000,0.0000000,0.0000000,-0.0000000
-MsgID.STATE,0.0000000,False,False,1
-MsgID.GLOBAL_HOME,0.0000000,-122.3957519,37.7932777,0.0000000
-MsgID.GLOBAL_POSITION,0.0000000,-122.3957472,37.7932743,0.1070000
-MsgID.LOCAL_VELOCITY,0.0000000,0.0000000,0.0000000,0.0000000
-MsgID.LOCAL_POSITION,366.1990000,-0.3784468,0.4144320,-0.1077293
-MsgID.LOCAL_VELOCITY,366.1990000,0.0000000,0.0000000,-0.0000000
-MsgID.GLOBAL_POSITION,0.0000000,-122.3957491,37.7932752,0.1160000
-MsgID.LOCAL_VELOCITY,0.0000000,0.0000000,0.0000000,0.0000000
-MsgID.LOCAL_POSITION,366.4510000,-0.2814083,0.2522061,-0.1162527
-MsgID.LOCAL_VELOCITY,366.4510000,0.0000000,0.0000000,-0.0000000
-MsgID.GLOBAL_POSITION,0.0000000,-122.3957489,37.7932756,0.1190000
-MsgID.LOCAL_VELOCITY,0.0000000,0.0000000,0.0000000,0.0000000
-MsgID.LOCAL_POSITION,366.7010000,-0.2285752,0.2638063,-0.1197982
-MsgID.LOCAL_VELOCITY,0.0000000,0.0000000,-0.0000000
-MsgID.GLOBAL_POSITION,0.0000000,-122.3957465,37.7932756,0.1150000
-MsgID.LOCAL_VELOCITY,0.0000000,0.0000000,0.0000000,0.0000000
-MsgID.LOCAL_POSITION,366.9500000,-0.2285817,0.4805351,-0.1153730
-MsgID.LOCAL_VELOCITY,0.0000000,0.0000000,-0.0000000
-MsgID.STATE,0.0000000,False,False,1
-MsgID.GLOBAL_HOME,0.0000000,-122.3957519,37.7932777,0.0000000
-MsgID.GLOBAL_POSITION,0.0000000,-122.3957487,37.7932756,0.1010000
-MsgID.LOCAL_VELOCITY,0.0000000,0.0000000,0.0000000,0.0000000
-MsgID.LOCAL_POSITION,367.2010000,-0.2288662,0.2863339,-0.1013307
-MsgID.LOCAL_VELOCITY,367.2010000,0.0000000,0.0000000,-0.0000000
-MsgID.GLOBAL_POSITION,0.0000000,-122.3957489,37.7932756,0.0770000"""
+import utm
 
 
+
+# Read the data from TLog.txt
 with open('..\Logs\TLog.txt', 'r') as file:
     data = file.read()
 
+
+def global_to_local(global_position, global_home):
+    """
+    Convert a global position (lon, lat, up) to a local position (north, east, down) relative to the home position.
+
+    Returns:
+        numpy array of the local position [north, east, down]
+    """
+    (east_home, north_home, _, _) = utm.from_latlon(global_home[1], global_home[0])
+    (east, north, _, _) = utm.from_latlon(global_position[1], global_position[0])
+
+    #local_position = np.array([north - north_home, east - east_home, -global_position[2]])
+    local_position = [north - north_home, east - east_home, -global_position[2]]
+    return local_position
+
+
+def local_to_global(local_position, global_home):
+    """
+    Convert a local position (north, east, down) relative to the home position to a global position (lon, lat, up)
+
+    Returns:
+        numpy array of the global position [longitude, latitude, altitude]
+    """
+    (east_home, north_home, zone_number, zone_letter) = utm.from_latlon(global_home[1], global_home[0])
+    (lat, lon) = utm.to_latlon(east_home + local_position[1], north_home + local_position[0], zone_number, zone_letter)
+
+    lla = [lon, lat, -local_position[2]]
+    return lla
+
+# Initialize lists to store GLOBAL_POSITION and LOCAL_POSITION data
+global_position = []
+local_position = []
+local_velocity = []
+global_home = []
+
 # Parse the data
-xyz_data = []
-
 for line in data.splitlines():
-    #if line.startswith("MsgID.LOCAL_POSITION"):
-    if line.startswith("MsgID.GLOBAL_POSITION"):
-        parts = line.split(',')
-        # Extracting x, y, z coordinates (ignoring the first value and the last)
-        x = float(parts[2])
-        y = float(parts[3])
-        z = float(parts[4])
-        xyz_data.append((x, y, z))
-        print(line, x, y, z)
-    if line.startswith("MsgID.LOCAL_POSITION"):
-        print(line)
+    parts = line.split(',')
+    msg_id = parts[0]
+    if msg_id == 'MsgID.GLOBAL_POSITION' and len(global_home) > 0:
+        global_lat_lon = [float(parts[2]), float(parts[3]), float(parts[4])]
+        local_NED = global_to_local(global_lat_lon, global_home)
+        global_position.append(local_NED)
+    elif msg_id == 'MsgID.GLOBAL_HOME':
+        global_home = [float(parts[2]), float(parts[3]), float(parts[4])]
+    elif msg_id == 'MsgID.LOCAL_POSITION':
+        local_position.append([float(parts[2]), float(parts[3]), float(parts[4])])
+    elif msg_id == 'MsgID.LOCAL_VELOCITY':
+        local_velocity.append([float(parts[2]), float(parts[3]), float(parts[4])])
+
+# Extract X, Y, Z coordinates for each position type
+global_x, global_y, global_z = zip(*global_position)
+local_x, local_y, local_z = zip(*local_position)
+vel_x, vel_y, vel_z = zip(*local_velocity)
+
+# Create a 3D subplot with 3 subplots side by side
+fig = plt.figure(figsize=(18, 6))
 
 
-# Unpack the XYZ coordinates
-xs, ys, zs = zip(*xyz_data)
+# Plot GLOBAL_POSITION
+ax1 = fig.add_subplot(131, projection='3d')
+ax1.plot(global_x, global_y, global_z, marker='o', linestyle='-', color='b')
+ax1.set_title('GLOBAL_POSITION')
+ax1.set_xlabel('North')
+ax1.set_ylabel('East')
+ax1.set_zlabel('Down')
 
-# Plot the data
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+# Plot LOCAL_POSITION
+ax2 = fig.add_subplot(132, projection='3d')
+ax2.plot(local_x, local_y, local_z, marker='o', linestyle='-', color='r')
+ax2.set_title('LOCAL_POSITION')
+ax2.set_xlabel('X')
+ax2.set_ylabel('Y')
+ax2.set_zlabel('Z')
 
-ax.plot(xs, ys, zs, marker='o', linestyle='-', color='b')
+# Plot LOCAL_VELOCITY
+ax3 = fig.add_subplot(133, projection='3d')
+ax3.plot(vel_x, vel_y, vel_z, marker='o', linestyle='-', color='g')
+ax3.set_title('LOCAL_VELOCITY')
+ax3.set_xlabel('X')
+ax3.set_ylabel('Y')
+ax3.set_zlabel('Z')
 
-# Set labels
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-
+# Show the plots
 plt.show()
-
-
