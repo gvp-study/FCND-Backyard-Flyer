@@ -3,17 +3,6 @@ In this project, you'll set up a state machine using event-driven programming to
 
 The python code you write is similar to how the drone would be controlled from a ground station computer or an onboard flight computer. Since communication with the drone is done using MAVLink, you will be able to use your code to control an PX4 quadcopter autopilot with very little modification!
 
-## Step 1: Download the Simulator
-If you haven't already, download the version of the simulator that's appropriate for your operating system [from this repository](https://github.com/udacity/FCND-Simulator-Releases/releases).
-
-## Step 2: Set up your Python Environment
-If you haven't already, set up your Python environment and get all the relevant packages installed using Anaconda following instructions in [this repository](https://github.com/udacity/FCND-Term1-Starter-Kit)
-
-## Step 3: Clone this Repository
-```sh
-git clone https://github.com/udacity/FCND-Backyard-Flyer
-```
-
 ## Task
 The required task is to command the drone to fly a 10 meter box at a 3 meter altitude. You'll fly this path in two ways: first using manual control and then under autonomous control.
 
@@ -22,10 +11,6 @@ Manual control of the drone is done using the instructions found with the simula
 Autonomous control will be done using an event-driven state machine. First, you will need to fill in the appropriate callbacks. Each callback will check against transition criteria dependent on the current state. If the transition criteria are met, it will transition to the next state and pass along any required commands to the drone.
 
 Telemetry data from the drone is logged for review after the flight. You will use the logs to plot the trajectory of the drone and analyze the performance of the task. For more information check out the Flight Log section below...
-
-## Drone API
-
-To communicate with the simulator (and a real drone), you will be using the [UdaciDrone API](https://udacity.github.io/udacidrone/).  This API handles all the communication between Python and the drone simulator.  A key element of the API is the `Drone` superclass that contains the commands to be passed to the simulator and allows you to register callbacks/listeners on changes to the drone's attributes.  The goal of this project is to design a subclass from the Drone class implementing a state machine to autonomously fly a box. A subclass is started for you in `backyard_flyer.py`
 
 ### Drone Attributes
 
@@ -209,11 +194,10 @@ def global_to_local(global_position, global_home):
 ## Submission Requirements
 
 * Filled in backyard_flyer.py
-```python
-from udacidrone import Drone
-from udacidrone.connection import MavlinkConnection, WebSocketConnection  # noqa: F401
-from udacidrone.messaging import MsgID
 
+```python
+
+# The six states of the drone.
 
 class States(Enum):
     MANUAL = 0
@@ -223,6 +207,7 @@ class States(Enum):
     LANDING = 4
     DISARMING = 5
 
+# Make the BackyardFlyer class from the Drone class and fill in the methods
 
 class BackyardFlyer(Drone):
 
@@ -241,11 +226,14 @@ class BackyardFlyer(Drone):
         self.register_callback(MsgID.LOCAL_VELOCITY, self.velocity_callback)
         self.register_callback(MsgID.STATE, self.state_callback)
 
+    # The position callback
     def local_position_callback(self):
+        # TAKEOFF is detected the square waypoints are calculated.
         if self.flight_state == States.TAKEOFF:
             if -1.0 * self.local_position[2] > 0.95 * self.target_position[2]:
                 self.all_waypoints = self.calculate_box()
                 self.waypoint_transition()
+        # WAYPOINT to check if drone is at the waypoint.
         elif self.flight_state == States.WAYPOINT:
             if np.linalg.norm(self.target_position[0:2] - self.local_position[0:2]) < 1.0:
                 if len(self.all_waypoints) > 0:
@@ -254,12 +242,15 @@ class BackyardFlyer(Drone):
                     if np.linalg.norm(self.local_velocity[0:2]) < 1.0:
                         self.landing_transition()
 
+    # The velocity callback.
     def velocity_callback(self):
+        # LANDING only if the drone is near home.
         if self.flight_state == States.LANDING:
             if self.global_position[2] - self.global_home[2] < 0.1:
                 if abs(self.local_position[2]) < 0.01:
                     self.disarming_transition()
 
+    # The state callback.
     def state_callback(self):
         if self.in_mission:
             if self.flight_state == States.MANUAL:
@@ -273,7 +264,7 @@ class BackyardFlyer(Drone):
 
     def calculate_box(self):
         print("Setting Home")
-        local_waypoints = [[20.0, 0.0, 3.0], [20.0, 10.0, 3.0], [0.0, 10.0, 3.0], [0.0, 0.0, 3.0]]
+        local_waypoints = [[10.0, 0.0, 3.0], [10.0, 10.0, 3.0], [0.0, 10.0, 3.0], [0.0, 0.0, 3.0]]
         return local_waypoints
 
     def arming_transition(self):
@@ -332,6 +323,15 @@ class BackyardFlyer(Drone):
 
         self.stop_log()
 
+
+if __name__ == "__main__":
+    conn = MavlinkConnection('tcp:127.0.0.1:5760', threaded=False, PX4=False)
+    #conn = WebSocketConnection('ws://127.0.0.1:5760')
+    drone = BackyardFlyer(conn)
+    time.sleep(2)
+    drone.start()
+
+
 ```
 
 * An x-y (East-North or Long-Lat) plot of the drone trajectory while manually flying the box
@@ -340,8 +340,9 @@ class BackyardFlyer(Drone):
 
 * A short write-up (.md or .pdf)
 
-
-Here is the drone global position plot ![Drone Position Plot](glo_loc_vel.png).
 # Drone Flight Data
 
-Here is the flight data analysis and the corresponding video of the drone flight.![Watch the drone flight video](backyard_flyer.mp4)
+Here is the combined plot of the drone global position, its local position and its velocity. ![Drone Position Plot](glo_loc_vel.png)
+
+# Drone Flight Video
+Here is the corresponding video of the drone flight.![Watch the drone flight video](backyard_flyer.mp4)

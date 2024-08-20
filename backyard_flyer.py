@@ -12,6 +12,7 @@ from udacidrone import Drone
 from udacidrone.connection import MavlinkConnection, WebSocketConnection  # noqa: F401
 from udacidrone.messaging import MsgID
 
+# The six states of the drone.
 
 class States(Enum):
     MANUAL = 0
@@ -21,6 +22,7 @@ class States(Enum):
     LANDING = 4
     DISARMING = 5
 
+# Make the BackyardFlyer class from the Drone class and fill in the methods
 
 class BackyardFlyer(Drone):
 
@@ -39,11 +41,14 @@ class BackyardFlyer(Drone):
         self.register_callback(MsgID.LOCAL_VELOCITY, self.velocity_callback)
         self.register_callback(MsgID.STATE, self.state_callback)
 
+    # The position callback
     def local_position_callback(self):
+        # TAKEOFF is detected the square waypoints are calculated.
         if self.flight_state == States.TAKEOFF:
             if -1.0 * self.local_position[2] > 0.95 * self.target_position[2]:
                 self.all_waypoints = self.calculate_box()
                 self.waypoint_transition()
+        # WAYPOINT to check if drone is at the waypoint.
         elif self.flight_state == States.WAYPOINT:
             if np.linalg.norm(self.target_position[0:2] - self.local_position[0:2]) < 1.0:
                 if len(self.all_waypoints) > 0:
@@ -52,12 +57,15 @@ class BackyardFlyer(Drone):
                     if np.linalg.norm(self.local_velocity[0:2]) < 1.0:
                         self.landing_transition()
 
+    # The velocity callback.
     def velocity_callback(self):
+        # LANDING only if the drone is near home.
         if self.flight_state == States.LANDING:
             if self.global_position[2] - self.global_home[2] < 0.1:
                 if abs(self.local_position[2]) < 0.01:
                     self.disarming_transition()
 
+    # The state callback.
     def state_callback(self):
         if self.in_mission:
             if self.flight_state == States.MANUAL:
@@ -71,7 +79,7 @@ class BackyardFlyer(Drone):
 
     def calculate_box(self):
         print("Setting Home")
-        local_waypoints = [[20.0, 0.0, 3.0], [20.0, 10.0, 3.0], [0.0, 10.0, 3.0], [0.0, 0.0, 3.0]]
+        local_waypoints = [[10.0, 0.0, 3.0], [10.0, 10.0, 3.0], [0.0, 10.0, 3.0], [0.0, 0.0, 3.0]]
         return local_waypoints
 
     def arming_transition(self):
