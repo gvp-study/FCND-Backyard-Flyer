@@ -345,4 +345,4 @@ if __name__ == "__main__":
 Here is the combined plot of the drone global position, its local position and its velocity. ![Drone Position Plot](glo_loc_vel.png)
 
 # Drone Flight Video
-Here is the corresponding video of the drone flight.![Watch the drone flight video](backyard_flyer.mp4)
+Here is the corresponding video of the drone flight.![Drone flight video](backyard_flyer.mp4)
